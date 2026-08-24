@@ -4,7 +4,7 @@ from enum import IntEnum
 from pathlib import Path
 from typing import Callable, Mapping
 
-import numpy as np
+import jax.numpy as jnp
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
@@ -38,6 +38,23 @@ def _packed_rgb(rgb: RGB) -> int:
     return (rgb[0] << 16) | (rgb[1] << 8) | rgb[2]
 
 
+def _pil_to_jax(image: Image.Image) -> jnp.ndarray:
+    """Decode a PIL image into a JAX array."""
+
+    width, height = image.size
+    channels = len(image.getbands())
+    array = jnp.frombuffer(image.tobytes(), dtype=jnp.uint8)
+    if channels == 1:
+        return array.reshape(height, width)
+    return array.reshape(height, width, channels)
+
+
+def _jax_to_torch(array: jnp.ndarray) -> torch.Tensor:
+    """Share a JAX array with PyTorch through DLPack."""
+
+    return torch.utils.dlpack.from_dlpack(array)
+
+
 def remap_rgb_mask(
     mask: Image.Image,
     colour_mapping: Mapping[RGB, int | CommonClass],
@@ -49,16 +66,26 @@ def remap_rgb_mask(
     transforms such as crops and flips.
     """
 
-    rgb = np.asarray(mask.convert("RGB"), dtype=np.uint8)
+    rgb = _pil_to_jax(mask.convert("RGB"))
     packed = (
-        (rgb[..., 0].astype(np.uint32) << 16)
-        | (rgb[..., 1].astype(np.uint32) << 8)
-        | rgb[..., 2].astype(np.uint32)
+        (rgb[..., 0].astype(jnp.uint32) << 16)
+        | (rgb[..., 1].astype(jnp.uint32) << 8)
+        | rgb[..., 2].astype(jnp.uint32)
     )
-    remapped = np.full(packed.shape, CommonClass.OTHER, dtype=np.uint8)
+    remapped = jnp.full(
+        packed.shape,
+        int(CommonClass.OTHER),
+        dtype=jnp.uint8,
+    )
     for colour, common_id in colour_mapping.items():
-        remapped[packed == _packed_rgb(colour)] = int(common_id)
-    return Image.fromarray(remapped, mode="L")
+        if common_id == CommonClass.OTHER:
+            continue
+        remapped = jnp.where(
+            packed == _packed_rgb(colour),
+            jnp.uint8(common_id),
+            remapped,
+        )
+    return Image.frombytes("L", mask.size, remapped.tobytes())
 
 
 def _image_to_tensor(image: object) -> torch.Tensor:
@@ -72,19 +99,29 @@ def _image_to_tensor(image: object) -> torch.Tensor:
             return tensor.float().div(255)
         return tensor.float()
 
-    array = np.asarray(image, dtype=np.uint8)
+    if isinstance(image, Image.Image):
+        array = _pil_to_jax(image)
+    else:
+        array = jnp.asarray(image)
     if array.ndim == 2:
-        array = np.repeat(array[..., None], 3, axis=2)
+        array = jnp.repeat(array[..., None], 3, axis=2)
     if array.ndim != 3:
         raise ValueError(f"Expected an HWC image, got shape {array.shape}")
-    return torch.from_numpy(array.copy()).permute(2, 0, 1).float().div(255)
+    tensor = _jax_to_torch(array).permute(2, 0, 1).float()
+    if array.dtype == jnp.uint8:
+        tensor = tensor.div(255)
+    return tensor
 
 
 def _target_to_tensor(target: object) -> torch.Tensor:
     if isinstance(target, torch.Tensor):
         tensor = target
     else:
-        tensor = torch.from_numpy(np.asarray(target).copy())
+        if isinstance(target, Image.Image):
+            array = _pil_to_jax(target)
+        else:
+            array = jnp.asarray(target)
+        tensor = _jax_to_torch(array)
 
     if tensor.ndim == 3 and tensor.shape[0] == 1:
         tensor = tensor.squeeze(0)

@@ -1,0 +1,5 @@
+# Core dataset runtime
+# JAX performs mask remapping; tensors are handed to PyTorch through DLPack.
+jax>=0.4.30,<1.0
+Pillow>=10.0,<12.0
+torch>=2.2,<3.0
