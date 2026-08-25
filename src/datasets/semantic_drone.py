@@ -43,6 +43,7 @@ SEMANTIC_DRONE_CLASS_TO_COMMON.update(
         "roof": CommonClass.BUILDING,
         "wall": CommonClass.BUILDING,
         "car": CommonClass.VEHICLE,
+        "person": CommonClass.HUMAN,
         "tree": CommonClass.VEGETATION,
     }
 )

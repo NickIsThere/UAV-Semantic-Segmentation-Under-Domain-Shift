@@ -24,7 +24,7 @@ UAVID_CLASS_TO_COMMON: dict[str, CommonClass] = {
     "Static_Car": CommonClass.VEHICLE,
     "Tree": CommonClass.VEGETATION,
     "LowVegetation": CommonClass.VEGETATION,
-    "Human": CommonClass.OTHER,
+    "Human": CommonClass.HUMAN,
     "Moving_Car": CommonClass.VEHICLE,
 }
 UAVID_TO_COMMON: dict[RGB, CommonClass] = {

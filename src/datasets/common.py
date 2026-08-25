@@ -17,7 +17,8 @@ class CommonClass(IntEnum):
     ROAD = 1
     VEGETATION = 2
     VEHICLE = 3
-    OTHER = 4
+    HUMAN = 4
+    OTHER = 5
 
 
 COMMON_CLASS_NAMES: tuple[str, ...] = (
@@ -25,6 +26,7 @@ COMMON_CLASS_NAMES: tuple[str, ...] = (
     "Road",
     "Vegetation",
     "Vehicle",
+    "Human",
     "Other",
 )
 
