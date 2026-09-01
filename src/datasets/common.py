@@ -176,13 +176,25 @@ class CommonSegmentationDataset(Dataset):
                 image = self.image_transform(image)
             return _image_to_tensor(image)
 
+        # Keep the mask in its original RGB label space while applying paired
+        # geometric transforms. This avoids remapping pixels that a crop will
+        # discard and guarantees that image and mask receive identical geometry.
         with Image.open(mask_path) as source_mask:
-            mask = remap_rgb_mask(source_mask, self.colour_mapping)
+            mask = source_mask.convert("RGB")
+
         if self.transforms is not None:
             transformed = self.transforms(image, mask)
             if not isinstance(transformed, (tuple, list)) or len(transformed) != 2:
                 raise TypeError("transforms must return an (image, mask) pair")
             image, mask = transformed
+
+        if not isinstance(mask, Image.Image):
+            raise TypeError(
+                "The mask returned by transforms must be a PIL image so it can "
+                "be remapped into the common label space"
+            )
+        mask = remap_rgb_mask(mask, self.colour_mapping)
+
         if self.image_transform is not None:
             image = self.image_transform(image)
         if self.target_transform is not None:

@@ -10,7 +10,7 @@ def split_sample_ids(
     if val_frac < 0 or val_frac > 1:
         raise ValueError(f"val_frac must be between 0 and 1, but got {val_frac}")
 
-    if train_frac + val_frac > 1:
+    if train_frac + val_frac >= 1:
         raise ValueError("The train fraction and val fraction exceeds 1!")
 
     ids = sorted(str(sample_id) for sample_id in sample_ids)
